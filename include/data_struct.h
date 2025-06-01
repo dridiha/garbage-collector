@@ -24,7 +24,7 @@ typedef struct {
 extern HashBucket HASH_MAP[LEVEL_SIZE];
 
 uint16_t hash(void *key);
-void insert_chunk_entry(void *key, HashBucket value);
+int8_t insert_chunk_entry(void *key, HashBucket value);
 HashBucket *get_chunk_bucket(void *key);
 bool chunk_entry_exists(void *key);
 
@@ -37,8 +37,8 @@ HashBucket create_hash_bucket(void *key);
 ChunkMetadata create_chunk_metadata(void *base, uint32_t chunk_size,
                                     int16_t object_size, uint8_t offset);
 
-void register_chunk_metadata(void *base, int16_t object_size,
-                             uint32_t chunk_size);
+int8_t register_chunk_metadata(void *base, int16_t object_size,
+                               uint32_t chunk_size);
 ChunkMetadata *find_metadata_by_pointer(void *ptr);
 void remove_chunk_metadata(void *ptr);
 void parse(void (*callback)(ChunkMetadata *metadata));

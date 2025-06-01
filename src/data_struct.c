@@ -3,11 +3,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 HashBucket HASH_MAP[LEVEL_SIZE] = {0};
 
 uint16_t hash(void *key) {
   // key is 64 bit address
-  unsigned long hi = ((unsigned long)key) >> (11);
+  unsigned long hi = ((unsigned long)key) >> (22);
   return (hi & 0x3FF) % LEVEL_SIZE;
 }
 
@@ -15,13 +16,13 @@ bool chunk_entry_exists(void *key) {
   int hashed_key = hash(key);
   return (HASH_MAP[hashed_key].high_bits != 0);
 }
-void insert_chunk_entry(void *key, HashBucket value) {
+int8_t insert_chunk_entry(void *key, HashBucket value) {
   int hashed_key = hash(key);
   if (chunk_entry_exists(key)) {
-    printf("collision detected. exiting \n");
-    exit(EXIT_FAILURE);
+    return -1;
   }
   HASH_MAP[hashed_key] = value;
+  return 0;
 }
 
 HashBucket *get_chunk_bucket(void *key) { return HASH_MAP + hash(key); }
@@ -36,30 +37,33 @@ HashBucket create_hash_bucket(void *key) {
 ChunkMetadata create_chunk_metadata(void *base, uint32_t chunk_size,
                                     int16_t object_size, uint8_t offset) {
   ChunkMetadata ChunkMetadata = {.object_size = object_size,
+                                 .offset = offset,
                                  .chunk_size = chunk_size,
                                  .base = base,
-                                 .offset = offset,
                                  .bitmap = {0}};
   return ChunkMetadata;
 }
 
-void register_chunk_metadata(void *base, int16_t object_size,
-                             uint32_t chunk_size) {
+int8_t register_chunk_metadata(void *base, int16_t object_size,
+                               uint32_t chunk_size) {
   uint16_t mid = ((unsigned long)base >> 12) & 0x3FF;
   if (!chunk_entry_exists(base)) {
-    insert_chunk_entry(base, create_hash_bucket(base));
-  } else {
-    printf("collision detected.Exiting\n");
-    exit(EXIT_FAILURE);
+    if (insert_chunk_entry(base, create_hash_bucket(base)) == -1) {
+      return -1;
+    }
   }
   HashBucket *hb = get_chunk_bucket(base);
   for (int i = 0; i < chunk_size / CHUNKSIZE; i++) {
     if (mid + i < LEVEL_SIZE) {
+      if (hb->chunks[mid + i].base != NULL) {
+        return -1;
+      }
       hb->chunks[mid + i] =
           create_chunk_metadata(base, chunk_size, object_size, i);
       ;
     }
   }
+  return 0;
 }
 
 ChunkMetadata *find_metadata_by_pointer(void *ptr) {
@@ -96,9 +100,9 @@ void remove_chunk_metadata(void *ptr) {
 void parse(void (*callback)(ChunkMetadata *)) {
   for (int i = 0; i < LEVEL_SIZE; i++) {
     if (HASH_MAP[i].high_bits != 0) {
+      ChunkMetadata *chunks = HASH_MAP[i].chunks;
       for (int j = 0; j < LEVEL_SIZE; j++) {
-        ChunkMetadata metadata = HASH_MAP[i].chunks[j];
-        callback(&metadata);
+        callback(chunks + j);
       }
     }
   }

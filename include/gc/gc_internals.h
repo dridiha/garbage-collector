@@ -7,6 +7,7 @@ void *gc_mmap(uint8_t number_of_chunks, int16_t object_size);
 void *gc_malloc(uint32_t size);
 void gc_free(ChunkMetadata *metadata);
 bool gc_is_valid_pointer(void *ptr);
+enum State gc_get_state(void *ptr);
 void gc_mark();
 void gc_sweep();
 

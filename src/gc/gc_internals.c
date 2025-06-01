@@ -1,17 +1,27 @@
 #include "../../include/gc.h"
 
+static uint64_t lower_bound = 0;
+static uint64_t higher_bound = 0;
+
 void *gc_mmap(uint8_t number_of_chunks, int16_t object_size) {
   void *ptr =
       (void *)mmap(NULL, CHUNKSIZE * number_of_chunks, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (ptr == MAP_FAILED) {
-    printf("mmap call failed\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
-  register_chunk_metadata(ptr, object_size, CHUNKSIZE * number_of_chunks);
+  if (register_chunk_metadata(ptr, object_size, CHUNKSIZE * number_of_chunks) ==
+      -1)
+    return NULL;
+  if ((uint64_t)ptr < lower_bound || lower_bound == 0)
+    lower_bound = (uint64_t)ptr;
+  if ((uint64_t)((uint8_t *)ptr + CHUNKSIZE * number_of_chunks) > higher_bound)
+    higher_bound = (uint64_t)((uint8_t *)ptr + CHUNKSIZE * number_of_chunks);
   return ptr;
 }
 void *gc_malloc(uint32_t size) {
+  if (size <= 0)
+    return NULL;
   if (size <= CHUNKSIZE / 2)
     return gc_malloc_small(size);
   return gc_malloc_large(size);
@@ -33,7 +43,10 @@ void gc_free(ChunkMetadata *metadata) {
   }
 }
 
-bool gc_is_valid_pointer(void *ptr) { return chunk_entry_exists(ptr); }
+bool gc_is_valid_pointer(void *ptr) {
+  return chunk_entry_exists(ptr) && (uint64_t)ptr >= lower_bound &&
+         (uint64_t)ptr <= higher_bound;
+}
 
 uint64_t *get_stack_top() {
   FILE *fd = fopen("/proc/self/maps", "r");
@@ -67,11 +80,20 @@ bool gc_check_if_marked(void *ptr, ChunkMetadata *metadata) {
 }
 
 void gc_mark_ptr(void *ptr, ChunkMetadata *metadata) {
-  if (metadata->object_size == -1) {
-    gc_mark_large(metadata);
-  } else
+  if (metadata->object_size == -1)
+    gc_mark_large(metadata, IN_USE);
+  else
     gc_mark_small(ptr, metadata, IN_USE);
 };
+
+enum State gc_get_state(void *ptr) {
+  ChunkMetadata *metadata = find_metadata_by_pointer(ptr);
+  if (metadata == NULL)
+    return -1;
+  uint8_t state = gc_get_state_small(ptr, metadata);
+  return metadata->object_size == -1 ? gc_get_state_large(metadata)
+                                     : gc_get_state_small(ptr, metadata);
+}
 
 void gc_mark_all_ptr(void *ptr) {
   // check if marked: return ( small or large )
@@ -88,7 +110,7 @@ void gc_mark_all_ptr(void *ptr) {
   uint64_t *end = metadata->object_size == -1
                       ? (uint64_t *)((uint8_t *)ptr + metadata->chunk_size)
                       : (uint64_t *)((uint8_t *)ptr + metadata->object_size);
-  for (uint64_t *p = ptr; p != end; p++) {
+  for (uint64_t *p = (uint64_t *)ptr; p != end; p++) {
     gc_mark_all_ptr((void *)(*p));
   }
 }
@@ -106,4 +128,4 @@ void gc_sweep_chunk(ChunkMetadata *metadata) {
   gc_free(metadata);
 }
 
-void gc_sweep() { parse(gc_sweep_chunk); }
+void gc_sweep() { parse(&gc_sweep_chunk); }
