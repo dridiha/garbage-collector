@@ -54,13 +54,11 @@ void *gc_malloc_small(uint32_t size) {
 }
 
 void gc_free_small(void *ptr, ChunkMetadata *metadata) {
-
   gc_mark_small(ptr, metadata, FREE);
-  enum State state = gc_get_state_small(ptr, metadata);
+  memset(ptr, 0, metadata->object_size);
   uint8_t index = get_index_from_size(metadata->object_size);
   *((void **)ptr) = small_mem[index];
   small_mem[index] = ptr;
-  memset(ptr, 0, metadata->object_size);
 }
 
 void gc_mark_small(void *ptr, ChunkMetadata *metadata, enum State flag) {

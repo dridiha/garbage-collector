@@ -8,7 +8,7 @@ void *gc_mmap(uint8_t number_of_chunks, int16_t object_size) {
       (void *)mmap(NULL, CHUNKSIZE * number_of_chunks, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (ptr == MAP_FAILED) {
-    exit(EXIT_FAILURE);
+    return NULL;
   }
   if (register_chunk_metadata(ptr, object_size, CHUNKSIZE * number_of_chunks) ==
       -1)

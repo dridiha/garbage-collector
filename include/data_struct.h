@@ -10,15 +10,15 @@ enum State {
   IN_USE,
 };
 typedef struct {
-  int16_t object_size;
   uint8_t offset;
+  int16_t object_size;
   uint32_t chunk_size;
-  void *base;
   uint8_t bitmap[MAX_BITMAP_SIZE];
+  void *base;
 } ChunkMetadata;
 
 typedef struct {
-  int high_bits;
+  uint32_t high_bits;
   ChunkMetadata chunks[LEVEL_SIZE];
 } HashBucket;
 extern HashBucket HASH_MAP[LEVEL_SIZE];
